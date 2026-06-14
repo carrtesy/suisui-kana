@@ -65,3 +65,5 @@ devtools_options.yaml
 !/store/icons
 /store/icons/*
 !/store/icons/suisui-kana-final-1024.png
+!/store/feature-graphic.png
+!/store/listing.md
