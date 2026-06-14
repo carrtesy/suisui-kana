@@ -18,6 +18,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+
+# Launcher icon — the image applied as-is (legacy launcher icon).
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "store/icons/suisui-kana-final-1024.png"

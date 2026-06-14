@@ -58,5 +58,10 @@ app.*.map.json
 /tool/
 devtools_options.yaml
 
-# Store assets (screenshots, icon source) — not app code
-/store/
+# Store assets — track screenshots + the final 1024 icon; ignore the rest
+# (icon mockups, extra sizes, scratch files stay local).
+/store/*
+!/store/screenshots
+!/store/icons
+/store/icons/*
+!/store/icons/suisui-kana-final-1024.png
