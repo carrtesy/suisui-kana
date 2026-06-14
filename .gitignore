@@ -55,4 +55,8 @@ app.*.map.json
 
 # Tooling / non-source
 /memory/
+/tool/
 devtools_options.yaml
+
+# Store assets (screenshots, icon source) — not app code
+/store/

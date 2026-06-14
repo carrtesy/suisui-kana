@@ -226,8 +226,8 @@ class _QuizPageState extends State<QuizPage>
     // ん / を: always read just the bare character, even in word mode.
     if (_target.romaji == 'n' || _target.romaji == 'wo') return _target.glyph;
     if (_settings.wordMode && w != null) {
-      // 、 makes the engine pause: "word" … "の kana".
-      return '${w.word}、 の ${_target.glyph}';
+      // Read "word の" together, then 、 pauses before the kana.
+      return '${w.word} の、 ${_target.glyph}';
     }
     return _target.glyph;
   }
