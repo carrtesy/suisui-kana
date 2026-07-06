@@ -2,8 +2,9 @@ import 'dart:io';
 import 'dart:math';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 
+import 'audio.dart';
+import 'celebration_page.dart';
 import 'draw_canvas.dart';
 import 'kana.dart';
 import 'kana_words.dart';
@@ -17,10 +18,12 @@ class QuizPage extends StatefulWidget {
     super.key,
     required this.store,
     required this.settings,
+    required this.voice,
     required this.active,
   });
   final Store store;
   final Settings settings;
+  final VoiceService voice;
 
   /// True only while the practice tab is on top — pauses the timer otherwise.
   final bool active;
@@ -35,8 +38,9 @@ class _QuizPageState extends State<QuizPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _canvas = DrawController();
   final _recognizer = Recognizer();
-  final _tts = FlutterTts();
   final _rng = Random();
+
+  VoiceService get _voice => widget.voice;
 
   late final AnimationController _timer = AnimationController(vsync: this)
     ..addStatusListener((s) {
@@ -47,8 +51,10 @@ class _QuizPageState extends State<QuizPage>
   bool _checking = false;
   bool _jaMissing = false; // Japanese TTS voice not installed
   late Kana _target;
+  String? _lastGlyph; // avoid drawing the same glyph twice in a row
   _Result _result = _Result.none;
   late ScriptMode _script;
+  late bool _extended;
 
   Store get _store => widget.store;
   Settings get _settings => widget.settings;
@@ -58,54 +64,17 @@ class _QuizPageState extends State<QuizPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _script = _settings.scriptMode;
+    _extended = _settings.includeExtended;
     _boot();
   }
 
   Future<void> _boot() async {
-    await _setupTts();
+    await _voice.init();
     await _checkJaVoice();
     await _recognizer.ensureModel();
     if (!mounted) return;
     setState(() => _ready = true);
     _next();
-  }
-
-  /// Configure TTS for the most natural Japanese the device can offer.
-  Future<void> _setupTts() async {
-    // Prefer Google's engine — its Japanese voices beat most vendor defaults.
-    try {
-      final engines = (await _tts.getEngines as List).cast<String>();
-      if (engines.contains('com.google.android.tts')) {
-        await _tts.setEngine('com.google.android.tts');
-      }
-    } catch (_) {/* keep current engine */}
-
-    await _tts.setLanguage('ja-JP');
-    await _tts.setSpeechRate(0.5);
-    await _tts.setPitch(1.0);
-
-    // Pick the highest-quality Japanese voice on offer (enhanced/network first).
-    try {
-      final voices = (await _tts.getVoices as List).cast<Map>();
-      final ja = voices
-          .where((v) =>
-              '${v['locale']}'.toLowerCase().startsWith('ja'))
-          .toList();
-      if (ja.isNotEmpty) {
-        final best = ja.firstWhere(
-          (v) {
-            final n = '${v['name']}'.toLowerCase();
-            return n.contains('network') ||
-                n.contains('wavenet') ||
-                n.contains('neural') ||
-                n.contains('enhanced');
-          },
-          orElse: () => ja.first,
-        );
-        await _tts.setVoice(
-            {'name': '${best['name']}', 'locale': '${best['locale']}'});
-      }
-    } catch (_) {/* fall back to default voice */}
   }
 
   // Re-check the voice when returning from the system TTS-data installer.
@@ -116,13 +85,7 @@ class _QuizPageState extends State<QuizPage>
 
   /// Flags whether the Japanese voice is available; surfaces an install banner.
   Future<void> _checkJaVoice() async {
-    bool ok;
-    try {
-      final v = await _tts.isLanguageAvailable('ja-JP');
-      ok = v == true || v == 1;
-    } catch (_) {
-      ok = true; // don't nag if the check itself fails
-    }
+    final ok = await _voice.isJaAvailable();
     if (mounted && ok == _jaMissing) setState(() => _jaMissing = !ok);
   }
 
@@ -138,16 +101,18 @@ class _QuizPageState extends State<QuizPage>
 
   void _toggleMute() {
     _settings.muted = !_settings.muted;
-    if (_settings.muted) _tts.stop();
+    if (_settings.muted) _voice.stop();
   }
 
   @override
   void didUpdateWidget(QuizPage old) {
     super.didUpdateWidget(old);
     if (!_ready) return;
-    // Script mode changed in settings → draw from the new pool.
-    if (_settings.scriptMode != _script) {
+    // Practice-set changed in settings → draw from the new pool.
+    if (_settings.scriptMode != _script ||
+        _settings.includeExtended != _extended) {
       _script = _settings.scriptMode;
+      _extended = _settings.includeExtended;
       _next();
       return;
     }
@@ -155,29 +120,54 @@ class _QuizPageState extends State<QuizPage>
     if (old.active != widget.active) {
       if (!widget.active) {
         _timer.stop();
-        _tts.stop();
+        _voice.stop();
       } else if (_result == _Result.none && _settings.timerSeconds > 0) {
         _timer.forward();
       }
     }
   }
 
-  // Pool the question is drawn from, filtered by the script mode.
-  List<Kana> get _pool {
+  /// The learner's chosen scope, ignoring the hide-mastered filter — this is
+  /// what "finish everything" is measured against. Contracted syllables (yōon,
+  /// two glyphs in a row) are never quizzed, so only voiced kana are added.
+  List<Kana> get _configuredSet {
+    final base =
+        _settings.includeExtended ? [...allKana, ...voicedKana] : allKana;
     switch (_settings.scriptMode) {
       case ScriptMode.hiragana:
-        return allKana.where((k) => k.hiragana).toList();
+        return base.where((k) => k.hiragana).toList();
       case ScriptMode.katakana:
-        return allKana.where((k) => !k.hiragana).toList();
+        return base.where((k) => !k.hiragana).toList();
       case ScriptMode.both:
-        return allKana;
+        return base;
     }
   }
 
+  /// The pool actually sampled: the configured set, minus mastered glyphs when
+  /// the user asked to hide them (but never empty — if all are mastered we still
+  /// draw from the full set so practice keeps working).
+  List<Kana> get _pool {
+    final set = _configuredSet;
+    if (_settings.hideMastered) {
+      final left = set.where((k) => !_store.isMastered(k.glyph)).toList();
+      if (left.isNotEmpty) return left;
+    }
+    return set;
+  }
+
   // Weighted pick: weight = 6 - level, so level 1 → 5×, level 5 → 1× (rare but
-  // never zero).
+  // never zero). Avoids repeating the previous glyph when the pool allows.
   Kana _pick() {
     final pool = _pool;
+    if (pool.length <= 1) return pool.first;
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final k = _weighted(pool);
+      if (k.glyph != _lastGlyph) return k;
+    }
+    return _weighted(pool);
+  }
+
+  Kana _weighted(List<Kana> pool) {
     final weights = [
       for (final k in pool) (Store.maxLevel + 1) - _store.level(k.glyph),
     ];
@@ -195,6 +185,7 @@ class _QuizPageState extends State<QuizPage>
   void _next() {
     setState(() {
       _target = _pick();
+      _lastGlyph = _target.glyph;
       _result = _Result.none;
       _checking = false;
       _canvas.clear();
@@ -216,20 +207,20 @@ class _QuizPageState extends State<QuizPage>
 
   void _speak() {
     if (_settings.muted) return;
-    _tts.speak(_speechText());
-  }
-
-  String _speechText() {
     final w = _wordFor(_target);
-    // ん is a moraic nasal (撥音); TTS reads a lone ん as the letter "n", so
-    // voice it through its example word where the nasal sounds natural.
-    // ん / を: always read just the bare character, even in word mode.
-    if (_target.romaji == 'n' || _target.romaji == 'wo') return _target.glyph;
-    if (_settings.wordMode && w != null) {
-      // Read "word の" together, then 、 pauses before the kana.
-      return '${w.word} の、 ${_target.glyph}';
+    final isSpecial = _target.romaji == 'n' || _target.romaji == 'wo';
+    // ん / を: always read just the bare character, even in word mode. In word
+    // mode the "word の kana" phrase is composite, so it always goes via TTS;
+    // a single glyph can use a recording when the voice pack has one.
+    if (_settings.wordMode && w != null && !isSpecial) {
+      // Word-mode phrase ("word の kana") has its own saved file per script.
+      final key = 'word_${_target.hiragana ? 'h' : 'k'}_${_target.romaji}';
+      _voice.speakPhrase(key, '${w.word} の、 ${_target.glyph}',
+          useVoicePack: _settings.useVoicePack);
+    } else {
+      _voice.speakGlyph(_target.romaji, _target.glyph,
+          useVoicePack: _settings.useVoicePack);
     }
-    return _target.glyph;
   }
 
   // Timer ran out: grade whatever is on the pad right now (empty → miss).
@@ -246,19 +237,17 @@ class _QuizPageState extends State<QuizPage>
     _timer.stop();
     setState(() => _checking = true);
 
+    // Contracted syllables (きゃ) are two shapes in one pad, so accept a deeper
+    // slice of the candidate list; basic glyphs stay strict to avoid false hits.
+    final depth = _target.kind == KanaKind.yoon ? 10 : 3;
     final correct = !_canvas.isEmpty &&
-        (await _recognizer.classify(_canvas.strokes))
-            .take(3)
+        (await _recognizer.classify(_canvas.strokes, _canvas.size))
+            .take(depth)
             .contains(_target.glyph);
 
     if (correct) {
       await _store.recordCorrect(_target.glyph);
-      final score = _store.score + 1;
-      await _store.setScore(score);
-      if (score >= Store.goal && mounted) {
-        _graduate();
-        return;
-      }
+      await _store.setScore(_store.score + 1);
     } else {
       await _store.recordWrong(_target.glyph);
     }
@@ -267,15 +256,24 @@ class _QuizPageState extends State<QuizPage>
       _result = correct ? _Result.right : _Result.wrong;
       _checking = false;
     });
+    await _maybeCelebrate();
   }
 
-  void _graduate() async {
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-          builder: (_) => const _GoodbyePage(), fullscreenDialog: true),
-    );
-    _next();
+  /// Celebrate only when the entire configured set is mastered — and only once
+  /// per completion. Dropping below full mastery re-arms it, so expanding the
+  /// scope (e.g. adding katakana) and finishing again celebrates anew.
+  Future<void> _maybeCelebrate() async {
+    final all = _store.allMastered(_configuredSet);
+    if (all && !_store.celebrated) {
+      await _store.setCelebrated(true);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CelebrationPage(settings: _settings),
+        fullscreenDialog: true,
+      ));
+    } else if (!all && _store.celebrated) {
+      await _store.setCelebrated(false);
+    }
   }
 
   @override
@@ -283,7 +281,7 @@ class _QuizPageState extends State<QuizPage>
     WidgetsBinding.instance.removeObserver(this);
     _timer.dispose();
     _recognizer.dispose();
-    _tts.stop();
+    // _voice is owned by HomeShell (shared with settings); don't dispose here.
     super.dispose();
   }
 
@@ -301,6 +299,7 @@ class _QuizPageState extends State<QuizPage>
     final revealed = _result != _Result.none;
     // Kana-only mode: once answered, reveal the glyph in place of the romaji.
     final showGlyph = revealed && !showWord;
+    final scriptLabel = _target.hiragana ? 'ひらがな' : 'カタカナ';
 
     // Everything scales off the available height so it never overflows and
     // adapts from a foldable cover screen up to a tablet.
@@ -354,7 +353,7 @@ class _QuizPageState extends State<QuizPage>
                     ),
                     Text(
                       showGlyph
-                          ? '${_target.romaji} ・ ${_target.hiragana ? 'ひらがな' : 'カタカナ'}'
+                          ? '${_target.romaji} ・ $scriptLabel'
                           : (_target.hiragana
                               ? 'hiragana ・ ひらがな'
                               : 'katakana ・ カタカナ'),
@@ -606,11 +605,29 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // After grading the pad stays editable so you can wipe it and trace the
+    // revealed glyph a few times before moving on.
     if (result != _Result.none) {
-      return FilledButton(
-        onPressed: onNext,
-        style: FilledButton.styleFrom(minimumSize: Size.fromHeight(height)),
-        child: const Text('next'),
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: onClear,
+              style:
+                  OutlinedButton.styleFrom(minimumSize: Size.fromHeight(height)),
+              child: const Text('clear'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: onNext,
+              style: FilledButton.styleFrom(minimumSize: Size.fromHeight(height)),
+              child: const Text('next'),
+            ),
+          ),
+        ],
       );
     }
     return Row(
@@ -638,51 +655,6 @@ class _Actions extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _GoodbyePage extends StatelessWidget {
-  const _GoodbyePage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('100',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 96,
-                      fontWeight: FontWeight.w200)),
-              const SizedBox(height: 16),
-              const Text(
-                'You know your kana.\nNothing left to teach you.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.white70, fontSize: 18, height: 1.5),
-              ),
-              const SizedBox(height: 48),
-              Builder(
-                builder: (context) => FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    minimumSize: const Size(220, 56),
-                  ),
-                  child: const Text('keep going'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

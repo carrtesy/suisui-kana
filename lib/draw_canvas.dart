@@ -13,6 +13,11 @@ class DrawCanvas extends StatefulWidget {
 
 class DrawController extends ChangeNotifier {
   final List<List<Offset>> strokes = [];
+
+  /// The pad's pixel size, captured on layout — handed to the recognizer so it
+  /// can normalise the ink to the area it was drawn in.
+  Size size = Size.zero;
+
   bool get isEmpty => strokes.every((s) => s.isEmpty);
 
   void clear() {
@@ -31,16 +36,21 @@ class _DrawCanvasState extends State<DrawCanvas> {
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 1,
-      child: GestureDetector(
-        onPanStart: (d) => _start(d.localPosition),
-        onPanUpdate: (d) => _move(d.localPosition),
-        child: AnimatedBuilder(
-          animation: c,
-          builder: (_, __) => CustomPaint(
-            painter: _Painter(c.strokes),
-            size: Size.infinite,
-          ),
-        ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          c.size = Size(box.maxWidth, box.maxHeight);
+          return GestureDetector(
+            onPanStart: (d) => _start(d.localPosition),
+            onPanUpdate: (d) => _move(d.localPosition),
+            child: AnimatedBuilder(
+              animation: c,
+              builder: (_, __) => CustomPaint(
+                painter: _Painter(c.strokes),
+                size: Size.infinite,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'ads.dart';
+import 'audio.dart';
+import 'intro_page.dart';
 import 'l10n.dart';
 import 'progress_page.dart';
 import 'quiz_page.dart';
@@ -8,6 +11,7 @@ import 'settings_page.dart';
 import 'store.dart';
 
 /// Bottom-nav shell: practice · study · settings.
+/// Shows the one-time intro on first launch; owns the shared [VoiceService].
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.store, required this.settings});
   final Store store;
@@ -19,27 +23,55 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  // Shared between the quiz (playback) and settings (download) so a freshly
+  // downloaded voice pack is visible without restarting the app.
+  final _voice = VoiceService();
+
+  @override
+  void dispose() {
+    _voice.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild labels when the UI language changes.
+    // Rebuild labels when the UI language changes / intro is dismissed.
     return AnimatedBuilder(
       animation: widget.settings,
       builder: (context, _) {
+        if (!widget.settings.introSeen) {
+          return IntroPage(
+            settings: widget.settings,
+            onDone: () => widget.settings.introSeen = true,
+          );
+        }
         final l = L10n(widget.settings.lang);
         return Scaffold(
           body: SafeArea(
-            // Keep all three alive; the quiz pauses its timer when not on top.
-            child: IndexedStack(
-              index: _index,
+            child: Column(
               children: [
-                QuizPage(
-                  store: widget.store,
-                  settings: widget.settings,
-                  active: _index == 0,
+                // Keep all three alive; the quiz pauses its timer when off-top.
+                Expanded(
+                  child: IndexedStack(
+                    index: _index,
+                    children: [
+                      QuizPage(
+                        store: widget.store,
+                        settings: widget.settings,
+                        voice: _voice,
+                        active: _index == 0,
+                      ),
+                      ProgressPage(
+                          store: widget.store, settings: widget.settings),
+                      SettingsPage(
+                        settings: widget.settings,
+                        store: widget.store,
+                        voice: _voice,
+                      ),
+                    ],
+                  ),
                 ),
-                ProgressPage(store: widget.store, settings: widget.settings),
-                SettingsPage(settings: widget.settings),
+                const BannerAdBar(),
               ],
             ),
           ),

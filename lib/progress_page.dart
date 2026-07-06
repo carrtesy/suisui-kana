@@ -15,12 +15,17 @@ class ProgressPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild when settings change (language/extended set) or progress is reset.
     return AnimatedBuilder(
-      animation: settings,
+      animation: Listenable.merge([settings, store]),
       builder: (context, _) {
         final l = L10n(settings.lang);
-        final hira = allKana.where((k) => k.hiragana).toList();
-        final kata = allKana.where((k) => !k.hiragana).toList();
+        // Study shows every single character (basic + voiced/dakuten), always,
+        // independent of the practice-set toggle. Contracted yōon (きゃ) are two
+        // glyphs in a row, not single characters, so they're not shown here.
+        final chars = [...allKana, ...voicedKana];
+        final hira = chars.where((k) => k.hiragana).toList();
+        final kata = chars.where((k) => !k.hiragana).toList();
         return DefaultTabController(
           length: 2,
           child: Column(
@@ -140,9 +145,15 @@ class _Cell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(kana.glyph,
-                style:
-                    const TextStyle(fontSize: 32, fontWeight: FontWeight.w400)),
+            // FittedBox keeps two-codepoint yōon (きゃ) from overflowing.
+            SizedBox(
+              height: 40,
+              child: FittedBox(
+                child: Text(kana.glyph,
+                    style: const TextStyle(
+                        fontSize: 32, fontWeight: FontWeight.w400)),
+              ),
+            ),
             Text(kana.romaji,
                 style: TextStyle(fontSize: 12, color: theme.hintColor)),
             const SizedBox(height: 6),

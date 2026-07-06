@@ -12,8 +12,22 @@ class Settings extends ChangeNotifier {
   final SharedPreferences _p;
   Settings(this._p);
 
-  // available timer durations (seconds); 0 = off.
-  static const timerChoices = [0, 3, 5, 10, 15];
+  // available timer durations (seconds); 0 = off (no limit).
+  static const timerChoices = [0, 5, 10, 15];
+
+  /// Once at startup: if the user has never picked a language, seed it from the
+  /// device locale (Korean → ko, Chinese → zh, otherwise English).
+  Future<void> applyDeviceLocaleDefault(String localeName) async {
+    if (_p.containsKey('lang')) return;
+    final code = localeName.toLowerCase();
+    final def = code.startsWith('ko')
+        ? Lang.ko
+        : code.startsWith('zh')
+            ? Lang.zh
+            : Lang.en;
+    await _p.setInt('lang', def.index);
+    notifyListeners();
+  }
 
   Lang get lang => Lang.values[_p.getInt('lang') ?? Lang.en.index];
   set lang(Lang v) {
@@ -31,6 +45,34 @@ class Settings extends ChangeNotifier {
       ScriptMode.values[_p.getInt('scriptMode') ?? ScriptMode.both.index];
   set scriptMode(ScriptMode v) {
     _p.setInt('scriptMode', v.index);
+    notifyListeners();
+  }
+
+  /// Include voiced (濁音) + contracted (拗音) syllables in the practice pool.
+  bool get includeExtended => _p.getBool('includeExtended') ?? false;
+  set includeExtended(bool v) {
+    _p.setBool('includeExtended', v);
+    notifyListeners();
+  }
+
+  /// Drop fully-mastered (level 5) glyphs from the practice pool.
+  bool get hideMastered => _p.getBool('hideMastered') ?? false;
+  set hideMastered(bool v) {
+    _p.setBool('hideMastered', v);
+    notifyListeners();
+  }
+
+  /// Play downloaded recordings instead of TTS when available.
+  bool get useVoicePack => _p.getBool('useVoicePack') ?? false;
+  set useVoicePack(bool v) {
+    _p.setBool('useVoicePack', v);
+    notifyListeners();
+  }
+
+  /// Whether the first-launch intro has been shown.
+  bool get introSeen => _p.getBool('introSeen') ?? false;
+  set introSeen(bool v) {
+    _p.setBool('introSeen', v);
     notifyListeners();
   }
 

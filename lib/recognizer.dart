@@ -17,7 +17,11 @@ class Recognizer {
   }
 
   /// Returns the model's best-guess glyphs, most likely first.
-  Future<List<String>> classify(List<List<Offset>> strokes) async {
+  ///
+  /// Passing the [Size] of the writing pad lets ML Kit normalise the ink to the
+  /// area it was drawn in, which noticeably improves single-character accuracy
+  /// (e.g. katakana メ vs. ×).
+  Future<List<String>> classify(List<List<Offset>> strokes, [Size? area]) async {
     final ink = Ink();
     var t = 0;
     for (final s in strokes) {
@@ -29,7 +33,12 @@ class Recognizer {
       ink.strokes.add(stroke);
     }
     if (ink.strokes.isEmpty) return const [];
-    final candidates = await _recognizer.recognize(ink);
+    final context = (area != null && area.width > 0 && area.height > 0)
+        ? DigitalInkRecognitionContext(
+            writingArea: WritingArea(width: area.width, height: area.height),
+          )
+        : null;
+    final candidates = await _recognizer.recognize(ink, context: context);
     return [for (final c in candidates) c.text];
   }
 
