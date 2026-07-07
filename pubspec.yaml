@@ -1,7 +1,7 @@
 name: suisui_kana
 description: "Suisui Kana — learn hiragana & katakana by writing them, smoothly (すいすい)."
 publish_to: 'none'
-version: 1.1.1+5
+version: 1.2.0+6
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_mlkit_digital_ink_recognition: ^0.13.0
+  google_mlkit_digital_ink_recognition: ^0.14.2
   shared_preferences: ^2.2.3
   flutter_tts: ^4.0.2
   android_intent_plus: ^5.1.0
