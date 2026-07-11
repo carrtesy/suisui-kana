@@ -208,7 +208,7 @@ class _QuizPageState extends State<QuizPage>
   void _speak() {
     if (_settings.muted) return;
     final w = _wordFor(_target);
-    final isSpecial = _target.romaji == 'n' || _target.romaji == 'wo';
+    final isSpecial = isCharacterOnly(_target.romaji);
     // ん / を: always read just the bare character, even in word mode. In word
     // mode the "word の kana" phrase is composite, so it always goes via TTS;
     // a single glyph can use a recording when the voice pack has one.
@@ -294,7 +294,7 @@ class _QuizPageState extends State<QuizPage>
     final l = L10n(_settings.lang);
     final word = _wordFor(_target);
     // ん / を have no real example word — keep them character-only everywhere.
-    final isSpecial = _target.romaji == 'n' || _target.romaji == 'wo';
+    final isSpecial = isCharacterOnly(_target.romaji);
     final showWord = _settings.wordMode && word != null && !isSpecial;
     final revealed = _result != _Result.none;
     // Kana-only mode: once answered, reveal the glyph in place of the romaji.

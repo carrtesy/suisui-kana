@@ -157,6 +157,12 @@ final List<Kana> extendedKana = [...voicedKana, ...yoonKana];
 /// Every syllable the app knows about (basic first, then extended).
 final List<Kana> everyKana = [...allKana, ...extendedKana];
 
+/// Kana that never begin a word: word mode reads just the bare glyph and shows
+/// no word hint. Their study example (if any) merely *contains* them — like
+/// ん → みかん, ぢ → はなぢ, づ → みかづき.
+bool isCharacterOnly(String romaji) =>
+    romaji == 'n' || romaji == 'wo' || romaji == 'dji' || romaji == 'dzu';
+
 Kana? kanaForGlyph(String glyph) {
   for (final k in everyKana) {
     if (k.glyph == glyph) return k;

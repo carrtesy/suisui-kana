@@ -75,10 +75,10 @@ class _SettingsPageState extends State<SettingsPage> {
     for (final k in [...allKana, ...voicedKana]) {
       items.putIfAbsent(k.romaji, () => k.glyph);
     }
-    // word-mode phrases — one per script (different example words), skipping
-    // the character-only ん / を.
-    for (final k in allKana) {
-      if (k.romaji == 'n' || k.romaji == 'wo') continue;
+    // word-mode phrases — one per script (different example words), including
+    // voiced kana; entries without a word (ん / を / ぢ / づ) are skipped.
+    for (final k in [...allKana, ...voicedKana]) {
+      if (isCharacterOnly(k.romaji)) continue;
       final w = (k.hiragana ? hiraganaWords : katakanaWords)[k.romaji];
       if (w == null) continue;
       items['word_${k.hiragana ? 'h' : 'k'}_${k.romaji}'] =
