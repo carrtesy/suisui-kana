@@ -77,10 +77,20 @@ class L10n {
       _pick("Couldn't build files", '生成失败', '만들기 실패');
   String get voiceReady => _pick('Voice ready', '语音已就绪', '음성 준비 완료');
   String get voiceRebuild => _pick(
-        'Saved on device — tap to rebuild',
-        '已保存到本机 — 点按可重新生成',
-        '기기에 저장됨 — 다시 만들려면 탭',
+        'Saved on device — delete below to rebuild',
+        '已保存到本机 — 如需重建请在下方删除',
+        '기기에 저장됨 — 다시 만들려면 아래에서 삭제',
       );
+  String get voiceUpdate =>
+      _pick('Update voice files', '更新语音', '음성 업데이트');
+  String voiceUpdateSub(int n) => _pick(
+        'Add $n new sound${n == 1 ? '' : 's'}',
+        '新增 $n 个发音',
+        '새 음성 $n개 추가',
+      );
+  String get voiceDelete =>
+      _pick('Delete saved voice', '删除已保存语音', '저장된 음성 삭제');
+  String get voiceDeleted => _pick('Voice deleted', '语音已删除', '음성을 삭제했어요');
 
   // progress reset
   String get progressSection => _pick('Progress', '进度', '진도');

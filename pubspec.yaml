@@ -1,7 +1,7 @@
 name: suisui_kana
 description: "Suisui Kana — learn hiragana & katakana by writing them, smoothly (すいすい)."
 publish_to: 'none'
-version: 1.2.1+7
+version: 1.2.2+8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

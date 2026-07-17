@@ -92,8 +92,19 @@ class VoiceService {
     }
   }
 
-  bool hasRecording(String romaji) => _have.contains(romaji);
+  bool hasRecording(String key) => _have.contains(key);
   bool get hasAnyRecording => _have.isNotEmpty;
+
+  /// How many of [keys] still have no saved file (for the "update" prompt).
+  int missingCount(Iterable<String> keys) =>
+      keys.where((k) => !_have.contains(k)).length;
+
+  /// Delete the whole downloaded voice pack.
+  Future<void> clearPack() async {
+    final dir = await _dir();
+    if (await dir.exists()) await dir.delete(recursive: true);
+    _have.clear();
+  }
 
   /// Speak the utterance stored under [key] (a romaji or a word-mode key):
   /// the saved file if opted in and present, otherwise live TTS of [fallback].
@@ -107,6 +118,7 @@ class VoiceService {
         return;
       } catch (_) {/* fall through to TTS */}
     }
+    await _player.stop(); // avoid overlap if a file just played
     await _tts.speak(fallback);
   }
 

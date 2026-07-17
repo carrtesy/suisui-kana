@@ -64,11 +64,11 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _buildVoicePack(L10n l) async {
-    if (_dlProgress != null) return;
-    setState(() => _dlProgress = 0);
-    // Build everything at once: the plain single-syllable readings AND the
-    // word-mode phrases ("word の kana"), so both modes play from files.
+  /// Every utterance the voice pack should hold (key → text to synthesize):
+  /// the plain single-syllable readings AND the word-mode phrases, so both
+  /// modes can play from files. This is the source of truth for both building
+  /// and the "what's still missing" check.
+  Map<String, String> _voiceItems() {
     final items = <String, String>{};
     // single-kana readings — both scripts share the sound, so key by romaji.
     // yōon are never spoken/quizzed, so only single-character sounds.
@@ -84,8 +84,21 @@ class _SettingsPageState extends State<SettingsPage> {
       items['word_${k.hiragana ? 'h' : 'k'}_${k.romaji}'] =
           '${w.word} の、 ${k.glyph}';
     }
+    return items;
+  }
+
+  /// Synthesize only the files that aren't there yet, so an app update just
+  /// tops up the new sounds instead of rebuilding everything.
+  Future<void> _buildVoicePack(L10n l) async {
+    if (_dlProgress != null) return;
+    final todo = {
+      for (final e in _voiceItems().entries)
+        if (!widget.voice.hasRecording(e.key)) e.key: e.value,
+    };
+    if (todo.isEmpty) return;
+    setState(() => _dlProgress = 0);
     final ok = await widget.voice.buildPack(
-      items,
+      todo,
       (done, total) {
         if (mounted) setState(() => _dlProgress = done / total);
       },
@@ -95,6 +108,14 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok > 0 ? '${l.downloaded} ($ok)' : l.downloadFailed),
     ));
+  }
+
+  Future<void> _deleteVoicePack(L10n l) async {
+    await widget.voice.clearPack();
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(l.voiceDeleted)));
   }
 
   @override
@@ -210,24 +231,55 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             Builder(builder: (context) {
               final building = _dlProgress != null;
-              // Once built, the files persist — show a ready state so there's
-              // no need to build again (tapping re-builds if wanted).
-              final ready = !building && widget.voice.hasAnyRecording;
-              return ListTile(
-                leading: Icon(
-                  ready ? Icons.check_circle : Icons.download_outlined,
-                  color: ready ? Colors.green : null,
-                ),
-                title: Text(building
-                    ? l.downloading
-                    : (ready ? l.voiceReady : l.download)),
-                subtitle: building
-                    ? LinearProgressIndicator(value: _dlProgress)
-                    : (ready ? Text(l.voiceRebuild) : null),
-                trailing: building
-                    ? Text('${(_dlProgress! * 100).round()}%')
-                    : const Icon(Icons.chevron_right),
-                onTap: building ? null : () => _buildVoicePack(l),
+              final has = widget.voice.hasAnyRecording;
+              // Files that still need synthesizing (e.g. new words after an
+              // app update). >0 while some exist → offer an "update".
+              final missing = widget.voice.missingCount(_voiceItems().keys);
+              final ready = !building && has && missing == 0;
+              final update = !building && has && missing > 0;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      ready
+                          ? Icons.check_circle
+                          : (update
+                              ? Icons.sync_problem
+                              : Icons.download_outlined),
+                      color: ready
+                          ? Colors.green
+                          : (update ? Colors.orange : null),
+                    ),
+                    title: Text(building
+                        ? l.downloading
+                        : ready
+                            ? l.voiceReady
+                            : update
+                                ? l.voiceUpdate
+                                : l.download),
+                    subtitle: building
+                        ? LinearProgressIndicator(value: _dlProgress)
+                        : ready
+                            ? Text(l.voiceRebuild)
+                            : update
+                                ? Text(l.voiceUpdateSub(missing))
+                                : null,
+                    trailing: building
+                        ? Text('${(_dlProgress! * 100).round()}%')
+                        : const Icon(Icons.chevron_right),
+                    onTap: building || ready ? null : () => _buildVoicePack(l),
+                  ),
+                  // Delete the saved audio (e.g. to reclaim space, or to force a
+                  // clean rebuild if a word changed).
+                  if (has && !building)
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline,
+                          color: Colors.redAccent),
+                      title: Text(l.voiceDelete,
+                          style: const TextStyle(color: Colors.redAccent)),
+                      onTap: () => _deleteVoicePack(l),
+                    ),
+                ],
               );
             }),
             const Divider(height: 1),
