@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'audio.dart';
 import 'intro_page.dart';
@@ -108,6 +109,15 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok > 0 ? '${l.downloaded} ($ok)' : l.downloadFailed),
     ));
+  }
+
+  Future<void> _openCoffee(L10n l) async {
+    final uri = Uri.parse('https://buymeacoffee.com/carrtesy');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.linkFailed)));
+    }
   }
 
   Future<void> _deleteVoicePack(L10n l) async {
@@ -290,6 +300,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: const TextStyle(color: Colors.redAccent)),
               onTap: () => _confirmReset(l),
             ),
+            const Divider(height: 1),
+            _SectionTitle(l.supportSection),
+            ListTile(
+              leading: const Text('☕', style: TextStyle(fontSize: 22)),
+              title: Text(l.buyCoffee),
+              subtitle: Text(l.buyCoffeeSub),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () => _openCoffee(l),
+            ),
+            const SizedBox(height: 8),
           ],
         );
       },

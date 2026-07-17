@@ -19,6 +19,19 @@ class VoiceService {
 
   Future<void> init() async {
     await _setupTts();
+    // Don't let the file player grab exclusive audio focus — otherwise TTS goes
+    // silent right after a saved file plays (e.g. a basic word plays from a
+    // file, then a dakuten word with no saved file falls back to TTS → muted).
+    // "mixWithOthers" maps to Android AudioFocus.none so both coexist. Must be
+    // set on the player instance (the global context doesn't retro-apply to an
+    // already-created player).
+    try {
+      final ctx =
+          AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers)
+              .build();
+      await AudioPlayer.global.setAudioContext(ctx);
+      await _player.setAudioContext(ctx);
+    } catch (_) {/* best effort */}
     await reloadPack();
   }
 

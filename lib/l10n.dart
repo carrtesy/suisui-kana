@@ -139,6 +139,18 @@ class L10n {
   String get getStarted => _pick('Get started', '开始', '시작하기');
   String get howToUse => _pick('How to use', '使用说明', '앱 사용법');
 
+  // support
+  String get supportSection => _pick('Support', '支持', '응원하기');
+  String get buyCoffee =>
+      _pick('Buy me a coffee', '请我喝杯咖啡', '개발자에게 커피 한 잔');
+  String get buyCoffeeSub => _pick(
+        'Support the developer — thank you!',
+        '支持开发者 — 谢谢！',
+        '개발을 응원해 주세요. 감사합니다!',
+      );
+  String get linkFailed =>
+      _pick("Couldn't open the link", '无法打开链接', '링크를 열 수 없어요');
+
   // full-mastery celebration
   String get celebrateTitle =>
       _pick('Congratulations!', '恭喜你！', '축하해요!');
