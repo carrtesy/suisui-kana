@@ -70,9 +70,8 @@ const Map<String, KanaWord> hiraganaWords = {
   'wo': KanaWord('を', 'wo', '➡️', 'object particle', '宾语助词', '을/를(조사)'),
   // ん never starts a word — みかん ends with it.
   'n': KanaWord('みかん', 'mikan', '🍊', 'mandarin', '橘子', '귤'),
-  // ── 濁音 / 半濁音 (voiced & semi-voiced). ぢ/づ never START a word, so their
-  // examples merely contain them (like ん → みかん) and word mode reads the bare
-  // glyph. The p-row has no native nouns, so it uses common everyday onomatopoeia.
+  // ── 濁音 / 半濁音 (voiced & semi-voiced). ぢ/づ are omitted from the set (see
+  // kana.dart). The p-row has no native nouns, so it uses common onomatopoeia.
   'ga': KanaWord('がっこう', 'gakkou', '🏫', 'school', '学校', '학교'),
   'gi': KanaWord('ぎんこう', 'ginkou', '🏦', 'bank', '银行', '은행'),
   'gu': KanaWord('ぐみ', 'gumi', '🍬', 'gummy', '软糖', '젤리'),
@@ -84,9 +83,6 @@ const Map<String, KanaWord> hiraganaWords = {
   'ze': KanaWord('ぜろ', 'zero', '0️⃣', 'zero', '零', '영'),
   'zo': KanaWord('ぞう', 'zou', '🐘', 'elephant', '大象', '코끼리'),
   'da': KanaWord('だんご', 'dango', '🍡', 'dango dumpling', '团子', '경단'),
-  // ぢ / づ never start a word — these examples contain them (like ん → みかん).
-  'dji': KanaWord('はなぢ', 'hanaji', '🩸', 'nosebleed', '流鼻血', '코피'),
-  'dzu': KanaWord('みかづき', 'mikazuki', '🌒', 'crescent moon', '月牙', '초승달'),
   'de': KanaWord('でんわ', 'denwa', '📞', 'telephone', '电话', '전화'),
   'do': KanaWord('どうぶつ', 'doubutsu', '🐾', 'animal', '动物', '동물'),
   'ba': KanaWord('ばら', 'bara', '🌹', 'rose', '玫瑰', '장미'),
@@ -148,7 +144,7 @@ const Map<String, KanaWord> katakanaWords = {
   'wa': KanaWord('ワイン', 'wain', '🍷', 'wine', '葡萄酒', '와인'),
   'wo': KanaWord('ウォーター', 'wootaa', '💧', 'water', '水', '물'),
   'n': KanaWord('ペン', 'pen', '🖊️', 'pen', '笔', '펜'),
-  // ── 濁音 / 半濁音 (loanwords). ヂ/ヅ never start a word → character-only.
+  // ── 濁音 / 半濁音 (loanwords). ヂ/ヅ are omitted from the set (see kana.dart).
   'ga': KanaWord('ガム', 'gamu', '🫧', 'gum', '口香糖', '껌'),
   'gi': KanaWord('ギター', 'gitaa', '🎸', 'guitar', '吉他', '기타'),
   'gu': KanaWord('グローブ', 'guroobu', '⚾', 'glove', '手套', '글러브'),

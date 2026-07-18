@@ -56,12 +56,13 @@ const _kata =
     'ワヲン';
 
 // ── voiced (濁音) + semi-voiced (半濁音) ──────────────────────────────────
-// Parallel (glyph, romaji) rows so hira/kata stay aligned. ぢ/づ get unique
-// romaji (dji/dzu) so the prompt never collides with じ/ず.
+// Parallel (glyph, romaji) rows so hira/kata stay aligned. ぢ/づ (yotsugana) are
+// omitted: they sound identical to じ/ず, are almost never used, and would make
+// the prompt ambiguous — so the だ row is just だ・で・ど here.
 const _dakutenReadings = [
   'ga', 'gi', 'gu', 'ge', 'go', //
   'za', 'ji', 'zu', 'ze', 'zo', //
-  'da', 'dji', 'dzu', 'de', 'do', //
+  'da', 'de', 'do', //
   'ba', 'bi', 'bu', 'be', 'bo', //
   'pa', 'pi', 'pu', 'pe', 'po', //
 ];
@@ -69,14 +70,14 @@ const _dakutenReadings = [
 const _dakutenHira =
     'がぎぐげご'
     'ざじずぜぞ'
-    'だぢづでど'
+    'だでど'
     'ばびぶべぼ'
     'ぱぴぷぺぽ';
 
 const _dakutenKata =
     'ガギグゲゴ'
     'ザジズゼゾ'
-    'ダヂヅデド'
+    'ダデド'
     'バビブベボ'
     'パピプペポ';
 
@@ -158,10 +159,8 @@ final List<Kana> extendedKana = [...voicedKana, ...yoonKana];
 final List<Kana> everyKana = [...allKana, ...extendedKana];
 
 /// Kana that never begin a word: word mode reads just the bare glyph and shows
-/// no word hint. Their study example (if any) merely *contains* them — like
-/// ん → みかん, ぢ → はなぢ, づ → みかづき.
-bool isCharacterOnly(String romaji) =>
-    romaji == 'n' || romaji == 'wo' || romaji == 'dji' || romaji == 'dzu';
+/// no word hint (ん → みかん contains, を is a particle).
+bool isCharacterOnly(String romaji) => romaji == 'n' || romaji == 'wo';
 
 Kana? kanaForGlyph(String glyph) {
   for (final k in everyKana) {
