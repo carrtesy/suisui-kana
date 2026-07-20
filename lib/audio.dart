@@ -14,6 +14,8 @@ class VoiceService {
   final FlutterTts _tts = FlutterTts();
   final AudioPlayer _player = AudioPlayer();
 
+  static const _ext = '.wav'; // voice-file format (see buildPack)
+
   Directory? _packDir;
   final Set<String> _have = {}; // romaji keys that have a local recording
 
@@ -100,7 +102,9 @@ class VoiceService {
     if (await dir.exists()) {
       for (final f in dir.listSync().whereType<File>()) {
         final name = f.uri.pathSegments.last;
-        if (name.endsWith('.wav')) _have.add(name.substring(0, name.length - 4));
+        if (name.endsWith(_ext)) {
+          _have.add(name.substring(0, name.length - _ext.length));
+        }
       }
     }
   }
@@ -123,13 +127,18 @@ class VoiceService {
   /// the saved file if opted in and present, otherwise live TTS of [fallback].
   Future<void> speakPhrase(String key, String fallback,
       {required bool useVoicePack}) async {
-    if (useVoicePack && hasRecording(key)) {
-      try {
-        final dir = await _dir();
-        await _player.stop();
-        await _player.play(DeviceFileSource('${dir.path}/$key.wav'));
-        return;
-      } catch (_) {/* fall through to TTS */}
+    if (useVoicePack) {
+      final dir = await _dir();
+      final file = File('${dir.path}/$key$_ext');
+      // Play the saved file only if it's actually on disk. Otherwise (not
+      // downloaded yet, or file gone) fall back to live TTS — never go silent.
+      if (file.existsSync()) {
+        try {
+          await _player.stop();
+          await _player.play(DeviceFileSource(file.path));
+          return;
+        } catch (_) {/* fall through to TTS */}
+      }
     }
     await _player.stop(); // avoid overlap if a file just played
     await _tts.speak(fallback);
@@ -160,7 +169,7 @@ class VoiceService {
     var ok = 0;
     var i = 0;
     for (final e in items.entries) {
-      final path = '${dir.path}/${e.key}.wav';
+      final path = '${dir.path}/${e.key}$_ext';
       try {
         // Backstop: never let one bad synthesis hang the whole build.
         await _tts
